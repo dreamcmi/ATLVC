@@ -9,7 +9,16 @@
 #include <string.h>
 #include "atlvc_err.h"
 
-#define ATLVC_BUFF_LEN (255)
+#if defined(_MSC_VER)  // MSVC 编译器
+  #define ALIGN_4 __declspec(align(4))  // MSVC 专属对齐
+  #define PACKED  // MSVC 用 #pragma pack 实现 packed，无需宏
+#elif defined(__GNUC__) || defined(__clang__)  // GCC/Clang 编译器
+  #define ALIGN_4 __attribute__((aligned(4)))  // GCC 对齐
+  #define PACKED __attribute__((packed))       // GCC 紧凑排列
+#else
+  #define ALIGN_4  // 其他编译器忽略
+  #define PACKED
+#endif
 
 // 帧结构（地址+指令+长度+数据+校验位）
 // 总长度 = 1(地址) + 1(指令) + 1(长度) + N(数据) + 1(校验位) = N+4
@@ -32,7 +41,7 @@ typedef enum {
 typedef atlvc_err_t (*atlvc_cmd_handler_t)(const atlvc_frame_t* frame, void* user_data);
 
 // ATLVC预定义指令表项（存储指令的协议规则）
-typedef struct {
+ALIGN_4 typedef struct {
     uint8_t address;                // 指令对应的地址（支持多地址设备）
     uint8_t cmd;                    // 指令码（唯一标识）
     uint8_t min_len;                // 最小数据长度（N的最小值）
@@ -44,7 +53,7 @@ typedef struct {
 } atlvc_cmd_rule_t;
 
 // 上下文
-typedef struct {
+ALIGN_4 typedef struct {
     const atlvc_cmd_rule_t* rule_table;  // 指令规则表
     uint16_t rule_table_size;            // 规则表长度
 } atlvc_context_t;
