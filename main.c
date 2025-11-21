@@ -14,6 +14,27 @@ atlvc_err_t heart_callback(const atlvc_frame_t* frame, void* user_data) {
     printf("data:   0x%02X\n", frame->data[0]);  // 心跳包数据固定1字节
     printf("user data: %s\n", (char*)user_data);
     printf("===============================\n\n");
+
+    uint8_t send_buff[10] = {0};
+    uint16_t send_len = 0;
+    uint8_t heart_data[] = {0xBB, 0xDD};
+    atlvc_frame_t send_frame = {
+        .address = frame->address,
+        .cmd = frame->cmd,
+        .length = sizeof(heart_data),
+        .data = heart_data,
+    };
+    atlvc_err_t err =  atlvc_pack(&send_frame, ATLVC_CHECKSUM_XOR, send_buff, 10, &send_len);
+    if (err != ATLVC_ERR_SUCCESS) {
+        printf("atlvc_pack() failed: %d\n", err);
+    }else {
+        printf("atlvc_pack() success\n");
+        printf("atlvc pack len is %d\n", send_len);
+        for (uint16_t i = 0; i < send_len; i++) {
+            printf("0x%02X ", send_buff[i]);
+        }
+        printf("\n");
+    }
     return ATLVC_ERR_SUCCESS;
 }
 
@@ -33,6 +54,27 @@ atlvc_err_t version_callback(const atlvc_frame_t* frame, void* user_data) {
     }
     printf("\nuser data: %d\n", *(int*)user_data);
     printf("=================================\n\n");
+
+    uint8_t send_buff[10] = {0};
+    uint16_t send_len = 0;
+    uint8_t version_data[] = {0x01, 0x02, 0x01, 0x01};
+    atlvc_frame_t send_frame = {
+        .address = frame->address,
+        .cmd = frame->cmd,
+        .length = sizeof(version_data),
+        .data = version_data,
+    };
+    atlvc_err_t err =  atlvc_pack(&send_frame, ATLVC_CHECKSUM_CRC8, send_buff, 10, &send_len);
+    if (err != ATLVC_ERR_SUCCESS) {
+        printf("atlvc_pack() failed: %d\n", err);
+    }else {
+        printf("atlvc_pack() success\n");
+        printf("atlvc pack len is %d\n", send_len);
+        for (uint16_t i = 0; i < send_len; i++) {
+            printf("0x%02X ", send_buff[i]);
+        }
+        printf("\n");
+    }
     return ATLVC_ERR_SUCCESS;
 }
 

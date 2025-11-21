@@ -62,5 +62,6 @@ ALIGN_4 typedef struct {
 atlvc_err_t atlvc_init(atlvc_context_t *ctx, const atlvc_cmd_rule_t* rule_table, uint16_t length);
 atlvc_err_t atlvc_deinit(atlvc_context_t *ctx);
 atlvc_err_t atlvc_process(atlvc_context_t *ctx, uint8_t *p, uint16_t len);
+atlvc_err_t atlvc_pack(atlvc_frame_t *frame, atlvc_checksum_type_t check_type, uint8_t *buff, uint16_t buff_len, uint16_t *frame_len);
 
 #endif //ATLVC_ATLVC_H

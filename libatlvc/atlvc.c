@@ -155,3 +155,45 @@ atlvc_err_t atlvc_process(atlvc_context_t *ctx, uint8_t *p, uint16_t len) {
 
     return ATLVC_ERR_SUCCESS;
 }
+
+
+atlvc_err_t atlvc_pack(atlvc_frame_t *frame, atlvc_checksum_type_t check_type, uint8_t *buff, uint16_t buff_len, uint16_t *frame_len) {
+    if (frame == NULL || buff == NULL || buff_len == 0 || frame_len == NULL) {
+        return ATLVC_ERR_INPUT_NULL;
+    }
+
+    // 计算打包长度
+    uint16_t pack_len = frame->length + 3;
+    if (check_type != ATLVC_CHECKSUM_NONE) {
+        pack_len += 1;
+    }
+    if (pack_len > buff_len) {
+        return ATLVC_ERR_DATA_LEN_ERR;
+    }
+
+    buff[0] = frame->address;
+    buff[1] = frame->cmd;
+    buff[2] = frame->length;
+    memcpy(buff + 3, frame->data, frame->length);
+
+    if (check_type != ATLVC_CHECKSUM_NONE) {
+        uint16_t check_data_len = pack_len - 1; // 校验数据长度=总长度-1（排除校验位本身）
+        uint8_t checksum = 0;
+
+        switch (check_type) {
+            case ATLVC_CHECKSUM_XOR:
+                checksum = atlvc_xor_checksum(buff, check_data_len);
+                break;
+            case ATLVC_CHECKSUM_CRC8:
+                checksum = atlvc_crc8_checksum(buff, check_data_len);
+                break;
+            default:
+                break;
+        }
+
+        buff[pack_len - 1] = checksum; // 校验位存放在帧末尾（索引=总长度-1）
+        *frame_len = pack_len;
+    }
+
+    return ATLVC_ERR_SUCCESS;
+}
