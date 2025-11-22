@@ -35,3 +35,15 @@ uint8_t atlvc_xor_checksum(const uint8_t* data, size_t len) {
     }
     return xor;
 }
+
+
+uint8_t atlvc_sum_checksum(const uint8_t* data, size_t len) {
+    uint8_t sum = 0x00;
+    if (data == NULL || len == 0) {
+        return sum;  // 输入无效时返回0（避免异常）
+    }
+    for (size_t i = 0; i < len; i++) {
+        sum += data[i];
+    }
+    return sum;
+}

@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include "atlvc.h"
 
@@ -78,9 +79,52 @@ atlvc_err_t version_callback(const atlvc_frame_t* frame, void* user_data) {
     return ATLVC_ERR_SUCCESS;
 }
 
+
+// 开关回调
+atlvc_err_t turn_on_callback(const atlvc_frame_t* frame, void* user_data) {
+    if (frame == NULL) {
+        return ATLVC_ERR_INPUT_NULL;
+    }
+
+    printf("\n=== turn_on_callback triggered ===\n");
+    printf("address: 0x%02X\n", frame->address);
+    printf("cmd:    0x%02X\n", frame->cmd);
+    printf("data len: %d\n", frame->length);
+    printf("turn on data: ");
+    for (uint8_t i = 0; i < frame->length; i++) {
+        printf("0x%02X ", frame->data[i]);
+    }
+    printf("\nuser data: %d\n", *(int*)user_data);
+    printf("=================================\n\n");
+
+    uint8_t send_buff[10] = {0};
+    uint16_t send_len = 0;
+    uint8_t turn_data[] = {0x02};
+    atlvc_frame_t send_frame = {
+        .address = frame->address,
+        .cmd = frame->cmd,
+        .length = sizeof(turn_data),
+        .data = turn_data,
+    };
+    atlvc_err_t err =  atlvc_pack(&send_frame, ATLVC_CHECKSUM_SUM, send_buff, 10, &send_len);
+    if (err != ATLVC_ERR_SUCCESS) {
+        printf("atlvc_pack() failed: %d\n", err);
+    }else {
+        printf("atlvc_pack() success\n");
+        printf("atlvc pack len is %d\n", send_len);
+        for (uint16_t i = 0; i < send_len; i++) {
+            printf("0x%02X ", send_buff[i]);
+        }
+        printf("\n");
+    }
+    return ATLVC_ERR_SUCCESS;
+}
+
+
 // 用户自定义数据（传递给回调函数）
 static char g_heart_user_data[] = "heartbeat user data";
 static int g_version_user_data = 12345;
+static bool g_turn_on_user_data = true;
 
 // 定义指令表
 static const atlvc_cmd_rule_t g_user_cmd_table[] = {
@@ -105,6 +149,16 @@ static const atlvc_cmd_rule_t g_user_cmd_table[] = {
         .handler = version_callback,
         .desc = "Get Version",
         .user_data = &g_version_user_data
+    },
+    {
+        .address = 0x01,
+        .cmd = 0x02,
+        .min_len = 1,
+        .max_len = 4,
+        .cs_type = ATLVC_CHECKSUM_SUM,
+        .handler = turn_on_callback,
+        .desc = "Turn On",
+        .user_data = &g_turn_on_user_data
     }
 };
 
@@ -140,6 +194,15 @@ int main(void) {
         printf("version_process failed: %d\n", err);
     } else {
         printf("version_process success\n");
+    }
+
+    // 测试3：开关控制（地址0x01+指令0x02+数据长度1+数据0x01+SUM校验位）
+    uint8_t turn_on_data[] = {0x01, 0x02, 0x01, 0x01, 0x05};
+    err = atlvc_process(&g_atlvc_context, turn_on_data, sizeof(turn_on_data));
+    if (err != ATLVC_ERR_SUCCESS) {
+        printf("turn_on_process failed: %d\n", err);
+    } else {
+        printf("turn_on_process success\n");
     }
 
     // 反初始化

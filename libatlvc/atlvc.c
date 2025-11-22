@@ -16,19 +16,18 @@ atlvc_err_t atlvc_check_sum(uint8_t *p, size_t data_len, atlvc_checksum_type_t c
     switch (cs_type) {
         case ATLVC_CHECKSUM_NONE:
             return ATLVC_ERR_SUCCESS;  // 无校验，直接通过
-
         case ATLVC_CHECKSUM_XOR:
             calculated_checksum = atlvc_xor_checksum(p, data_len);
             break;
-
         case ATLVC_CHECKSUM_CRC8:
             calculated_checksum = atlvc_crc8_checksum(p, data_len);
             break;
-
+        case ATLVC_CHECKSUM_SUM:
+            calculated_checksum = atlvc_sum_checksum(p, data_len);
+            break;
         default:
             return ATLVC_ERR_FAILURE;  // 未知校验类型
     }
-
     // 对比计算结果与传入的校验位
     return (calculated_checksum == checksum) ? ATLVC_ERR_SUCCESS : ATLVC_ERR_CHECKSUM_ERR;
 }
@@ -186,6 +185,9 @@ atlvc_err_t atlvc_pack(atlvc_frame_t *frame, atlvc_checksum_type_t check_type, u
                 break;
             case ATLVC_CHECKSUM_CRC8:
                 checksum = atlvc_crc8_checksum(buff, check_data_len);
+                break;
+            case ATLVC_CHECKSUM_SUM:
+                checksum = atlvc_sum_checksum(buff, check_data_len);
                 break;
             default:
                 break;

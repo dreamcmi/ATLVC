@@ -35,6 +35,7 @@ typedef enum {
     ATLVC_CHECKSUM_NONE = 0,    // 无校验（不需要校验位）
     ATLVC_CHECKSUM_XOR,         // XOR校验（字节异或，1字节校验位）
     ATLVC_CHECKSUM_CRC8,        // CRC8校验（1字节校验位）
+    ATLVC_CHECKSUM_SUM,         // SUM校验（累加和校验）
 } atlvc_checksum_type_t;
 
 // 前向声明：指令处理回调函数类型（解析后触发的业务逻辑）
