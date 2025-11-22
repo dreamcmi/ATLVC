@@ -67,12 +67,6 @@ atlvc_err_t atlvc_process(atlvc_context_t *ctx, uint8_t *p, uint16_t len) {
     uint8_t address = p[0];
     uint8_t cmd = p[1];
     uint8_t data_len = p[2];
-    atlvc_frame_t frame = {
-        .address = address,
-        .cmd = cmd,
-        .length = data_len,
-        .data = p + 3  // 数据段起始地址
-    };
 
     // 3. 查找匹配的指令规则（地址+指令匹配）
     const atlvc_cmd_rule_t* matched_rule = NULL;
@@ -117,7 +111,15 @@ atlvc_err_t atlvc_process(atlvc_context_t *ctx, uint8_t *p, uint16_t len) {
         }
     }
 
-    // 7. 触发回调函数（传递帧数据和用户数据）
+    // 7. 赋值frame用于传递
+    atlvc_frame_t frame = {
+        .address = address,
+        .cmd = cmd,
+        .length = data_len,
+        .data = p + 3  // 数据段起始地址
+    };
+
+    // 8. 触发回调函数（传递帧数据和用户数据）
     if (matched_rule->handler == NULL) {
         return ATLVC_ERR_HANDLER_NULL;
     }
