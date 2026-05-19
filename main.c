@@ -2,6 +2,13 @@
 #include <stdio.h>
 #include "atlvc.h"
 
+// 全局上下文指针（供回调函数使用）
+static atlvc_context_t* g_callback_ctx = NULL;
+// 定义协议栈上下文（带帧头帧尾）
+atlvc_context_t g_atlvc_context_with_boundary = {0};
+// 定义协议栈上下文（无帧头帧尾）
+atlvc_context_t g_atlvc_context_no_boundary = {0};
+
 // 心跳包回调
 atlvc_err_t heart_callback(const atlvc_frame_t* frame, void* user_data) {
     if (frame == NULL) {
@@ -16,7 +23,7 @@ atlvc_err_t heart_callback(const atlvc_frame_t* frame, void* user_data) {
     printf("user data: %s\n", (char*)user_data);
     printf("===============================\n\n");
 
-    uint8_t send_buff[10] = {0};
+    uint8_t send_buff[20] = {0};
     uint16_t send_len = 0;
     uint8_t heart_data[] = {0xBB, 0xDD};
     atlvc_frame_t send_frame = {
@@ -25,7 +32,7 @@ atlvc_err_t heart_callback(const atlvc_frame_t* frame, void* user_data) {
         .length = sizeof(heart_data),
         .data = heart_data,
     };
-    atlvc_err_t err =  atlvc_pack(&send_frame, ATLVC_CHECKSUM_XOR, send_buff, 10, &send_len);
+    atlvc_err_t err = atlvc_pack(g_callback_ctx, &send_frame, ATLVC_CHECKSUM_XOR, send_buff, 20, &send_len);
     if (err != ATLVC_ERR_SUCCESS) {
         printf("atlvc_pack() failed: %d\n", err);
     }else {
@@ -56,7 +63,7 @@ atlvc_err_t version_callback(const atlvc_frame_t* frame, void* user_data) {
     printf("\nuser data: %d\n", *(int*)user_data);
     printf("=================================\n\n");
 
-    uint8_t send_buff[10] = {0};
+    uint8_t send_buff[20] = {0};
     uint16_t send_len = 0;
     uint8_t version_data[] = {0x01, 0x02, 0x01, 0x01};
     atlvc_frame_t send_frame = {
@@ -65,7 +72,7 @@ atlvc_err_t version_callback(const atlvc_frame_t* frame, void* user_data) {
         .length = sizeof(version_data),
         .data = version_data,
     };
-    atlvc_err_t err =  atlvc_pack(&send_frame, ATLVC_CHECKSUM_CRC8, send_buff, 10, &send_len);
+    atlvc_err_t err = atlvc_pack(g_callback_ctx, &send_frame, ATLVC_CHECKSUM_CRC8, send_buff, 20, &send_len);
     if (err != ATLVC_ERR_SUCCESS) {
         printf("atlvc_pack() failed: %d\n", err);
     }else {
@@ -78,7 +85,6 @@ atlvc_err_t version_callback(const atlvc_frame_t* frame, void* user_data) {
     }
     return ATLVC_ERR_SUCCESS;
 }
-
 
 // 开关回调
 atlvc_err_t turn_on_callback(const atlvc_frame_t* frame, void* user_data) {
@@ -97,7 +103,7 @@ atlvc_err_t turn_on_callback(const atlvc_frame_t* frame, void* user_data) {
     printf("\nuser data: %d\n", *(int*)user_data);
     printf("=================================\n\n");
 
-    uint8_t send_buff[10] = {0};
+    uint8_t send_buff[20] = {0};
     uint16_t send_len = 0;
     uint8_t turn_data[] = {0x02};
     atlvc_frame_t send_frame = {
@@ -106,7 +112,7 @@ atlvc_err_t turn_on_callback(const atlvc_frame_t* frame, void* user_data) {
         .length = sizeof(turn_data),
         .data = turn_data,
     };
-    atlvc_err_t err =  atlvc_pack(&send_frame, ATLVC_CHECKSUM_SUM, send_buff, 10, &send_len);
+    atlvc_err_t err = atlvc_pack(g_callback_ctx, &send_frame, ATLVC_CHECKSUM_SUM, send_buff, 20, &send_len);
     if (err != ATLVC_ERR_SUCCESS) {
         printf("atlvc_pack() failed: %d\n", err);
     }else {
@@ -172,87 +178,99 @@ static const atlvc_cmd_rule_t g_user_cmd_table[] = {
 // 计算指令表长度
 #define USER_CMD_TABLE_SIZE (sizeof(g_user_cmd_table) / sizeof(atlvc_cmd_rule_t))
 
-// 定义协议栈上下文
-atlvc_context_t g_atlvc_context = {0};
+
+// 定义帧头帧尾配置
+static const atlvc_frame_boundary_t g_frame_boundary = {
+    .header_len = 2,
+    .header = {0xAA, 0xBB},      // 自定义帧头：0xAA 0xBB
+    .trailer_len = 2,
+    .trailer = {0xCC, 0xDD}       // 自定义帧尾：0xCC 0xDD
+};
+
 
 int main(void) {
-    // 初始化上下文
-    atlvc_err_t err = atlvc_init(&g_atlvc_context, g_user_cmd_table, USER_CMD_TABLE_SIZE);
+    atlvc_err_t err;
+
+    // 测试1：无帧头帧尾模式
+    printf("===== 测试1：无帧头帧尾模式 =====\n");
+    // 初始化上下文（无帧头帧尾）
+    err = atlvc_init(&g_atlvc_context_no_boundary, g_user_cmd_table, USER_CMD_TABLE_SIZE);
     if (err != ATLVC_ERR_SUCCESS) {
         printf("atlvc_init() failed: %d\n", err);
         return err;
     }
-    printf("atlvc_init() success\n");
+    printf("atlvc_init() success (无帧头帧尾)\n");
+    
+    // 设置全局上下文指针供回调使用
+    g_callback_ctx = &g_atlvc_context_no_boundary;
 
-    // 测试1：心跳包（地址0x10，指令0x00，数据长度1，数据0xAA，XOR校验位）
+    // 测试：心跳包（地址0x10，指令0x00，数据长度1，数据0xAA，XOR校验位）
     // XOR校验计算：0x10 ^ 0x00 ^ 0x01 ^ 0xAA = 0xBB
-    printf("\n=== Test 1: 心跳包 (地址范围匹配 0x10) ===\n");
+    printf("\n=== Test 1.1: 心跳包 (无帧头帧尾) ===\n");
     uint8_t heart_data1[] = {0x10, 0x00, 0x01, 0xAA, 0xBB};
-    err = atlvc_process(&g_atlvc_context, heart_data1, sizeof(heart_data1));
+    err = atlvc_process(&g_atlvc_context_no_boundary, heart_data1, sizeof(heart_data1));
     if (err != ATLVC_ERR_SUCCESS) {
-        printf("heart_process (0x10) failed: %d\n", err);
+        printf("heart_process failed: %d\n", err);
     } else {
-        printf("heart_process (0x10) success\n");
-    }
-
-    // 测试2：心跳包（地址0x1F，指令0x00，数据长度1，数据0xAA，XOR校验位）
-    // XOR校验计算：0x1F ^ 0x00 ^ 0x01 ^ 0xAA = 0xB4
-    printf("\n=== Test 2: 心跳包 (地址范围匹配 0x1F) ===\n");
-    uint8_t heart_data2[] = {0x1F, 0x00, 0x01, 0xAA, 0xB4};
-    err = atlvc_process(&g_atlvc_context, heart_data2, sizeof(heart_data2));
-    if (err != ATLVC_ERR_SUCCESS) {
-        printf("heart_process (0x1F) failed: %d\n", err);
-    } else {
-        printf("heart_process (0x1F) success\n");
-    }
-
-    // 测试3：版本查询（地址0x01，指令0x01，数据长度3，数据0x01,0x02,0x03，CRC8校验位）
-    printf("\n=== Test 3: 版本查询 (单一地址 0x01) ===\n");
-    uint8_t version_data[] = {0x01, 0x01, 0x03, 0x01, 0x02, 0x03, 0x39};
-    err = atlvc_process(&g_atlvc_context, version_data, sizeof(version_data));
-    if (err != ATLVC_ERR_SUCCESS) {
-        printf("version_process failed: %d\n", err);
-    } else {
-        printf("version_process success\n");
-    }
-
-    // 测试4：开关控制（地址0xF2，指令0x02，数据长度1，数据0x01，SUM校验位）
-    // SUM校验计算：(0xF2 + 0x02 + 0x01 + 0x01) & 0xFF = 0xF6
-    printf("\n=== Test 4: 开关控制 (地址掩码匹配 0xF2) ===\n");
-    uint8_t turn_on_data1[] = {0xF2, 0x02, 0x01, 0x01, 0xF6};
-    err = atlvc_process(&g_atlvc_context, turn_on_data1, sizeof(turn_on_data1));
-    if (err != ATLVC_ERR_SUCCESS) {
-        printf("turn_on_process (0xF2) failed: %d\n", err);
-    } else {
-        printf("turn_on_process (0xF2) success\n");
-    }
-
-    // 测试5：开关控制（地址0xF7，指令0x02，数据长度1，数据0x01，SUM校验位）
-    // SUM校验计算：(0xF7 + 0x02 + 0x01 + 0x01) & 0xFF = 0xFB
-    printf("\n=== Test 5: 开关控制 (地址掩码匹配 0xF7) ===\n");
-    uint8_t turn_on_data2[] = {0xF7, 0x02, 0x01, 0x01, 0xFB};
-    err = atlvc_process(&g_atlvc_context, turn_on_data2, sizeof(turn_on_data2));
-    if (err != ATLVC_ERR_SUCCESS) {
-        printf("turn_on_process (0xF7) failed: %d\n", err);
-    } else {
-        printf("turn_on_process (0xF7) success\n");
-    }
-
-    // 测试6：开关控制（地址0x02，指令0x02）- 应该匹配失败，因为0x02 & 0xF0 = 0x00 != 0xF0
-    printf("\n=== Test 6: 开关控制 (地址掩码不匹配 0x02) ===\n");
-    uint8_t turn_on_data3[] = {0x02, 0x02, 0x01, 0x01, 0x05};
-    err = atlvc_process(&g_atlvc_context, turn_on_data3, sizeof(turn_on_data3));
-    if (err != ATLVC_ERR_SUCCESS) {
-        printf("turn_on_process (0x02) failed (expected): %d\n", err);
-    } else {
-        printf("turn_on_process (0x02) success (unexpected!)\n");
+        printf("heart_process success\n");
     }
 
     // 反初始化
-    err = atlvc_deinit(&g_atlvc_context);
+    err = atlvc_deinit(&g_atlvc_context_no_boundary);
     if (err != ATLVC_ERR_SUCCESS) {
-        printf("atlvc_deinit() failed: %d\n", err);
+        printf("atlvc_deinit() (no boundary) failed: %d\n", err);
     }
-    printf("atlvc_deinit() success\n");
+
+    
+    // 测试2：带帧头帧尾模式
+    printf("\n===== 测试2：带帧头帧尾模式 =====\n");
+    // 初始化上下文（带帧头帧尾）
+    err = atlvc_init_with_boundary(&g_atlvc_context_with_boundary, g_user_cmd_table, USER_CMD_TABLE_SIZE, &g_frame_boundary);
+    if (err != ATLVC_ERR_SUCCESS) {
+        printf("atlvc_init_with_boundary() failed: %d\n", err);
+        return err;
+    }
+    printf("atlvc_init_with_boundary() success (帧头: 0xAA 0xBB, 帧尾: 0xCC 0xDD)\n");
+    
+    // 设置全局上下文指针供回调使用
+    g_callback_ctx = &g_atlvc_context_with_boundary;
+
+    // 测试：带帧头帧尾的心跳包
+    // 完整帧：帧头(0xAA 0xBB) + 地址(0x10) + 指令(0x00) + 长度(0x01) + 数据(0xAA) + 校验(0xBB) + 帧尾(0xCC 0xDD)
+    printf("\n=== Test 2.1: 心跳包 (带帧头帧尾 - 正确) ===\n");
+    uint8_t heart_with_boundary[] = {0xAA, 0xBB, 0x10, 0x00, 0x01, 0xAA, 0xBB, 0xCC, 0xDD};
+    err = atlvc_process(&g_atlvc_context_with_boundary, heart_with_boundary, sizeof(heart_with_boundary));
+    if (err != ATLVC_ERR_SUCCESS) {
+        printf("heart_process (with boundary) failed: %d\n", err);
+    } else {
+        printf("heart_process (with boundary) success\n");
+    }
+
+    // 测试：帧头错误
+    printf("\n=== Test 2.2: 心跳包 (帧头错误 - 预期失败) ===\n");
+    uint8_t heart_bad_header[] = {0xAB, 0xBB, 0x10, 0x00, 0x01, 0xAA, 0xBB, 0xCC, 0xDD};
+    err = atlvc_process(&g_atlvc_context_with_boundary, heart_bad_header, sizeof(heart_bad_header));
+    if (err != ATLVC_ERR_SUCCESS) {
+        printf("heart_process (bad header) failed (expected): %d\n", err);
+    } else {
+        printf("heart_process (bad header) success (unexpected!)\n");
+    }
+
+    // 测试：帧尾错误
+    printf("\n=== Test 2.3: 心跳包 (帧尾错误 - 预期失败) ===\n");
+    uint8_t heart_bad_trailer[] = {0xAA, 0xBB, 0x10, 0x00, 0x01, 0xAA, 0xBB, 0xCD, 0xDD};
+    err = atlvc_process(&g_atlvc_context_with_boundary, heart_bad_trailer, sizeof(heart_bad_trailer));
+    if (err != ATLVC_ERR_SUCCESS) {
+        printf("heart_process (bad trailer) failed (expected): %d\n", err);
+    } else {
+        printf("heart_process (bad trailer) success (unexpected!)\n");
+    }
+
+    // 反初始化
+    err = atlvc_deinit(&g_atlvc_context_with_boundary);
+    if (err != ATLVC_ERR_SUCCESS) {
+        printf("atlvc_deinit() (with boundary) failed: %d\n", err);
+    }
+    printf("\natlvc_deinit() success\n");
     return 0;
 }

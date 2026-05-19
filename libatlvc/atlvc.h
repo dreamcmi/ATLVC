@@ -20,6 +20,10 @@
   #define PACKED
 #endif
 
+// 最大帧头帧尾长度（可根据需要调整）
+#define ATLVC_MAX_FRAME_HEADER_LEN 8
+#define ATLVC_MAX_FRAME_TRAILER_LEN 8
+
 // 帧结构（地址+指令+长度+数据+校验位）
 // 总长度 = 1(地址) + 1(指令) + 1(长度) + N(数据) + 1(校验位) = N+4
 typedef struct {
@@ -46,6 +50,14 @@ typedef enum {
     ATLVC_ADDR_WILDCARD = 0xFF,    // 地址通配符（匹配任意地址）
 } atlvc_addr_match_type_t;
 
+// 帧头帧尾配置（可选功能）
+typedef struct {
+    uint8_t header_len;                        // 帧头长度（0表示无帧头）
+    uint8_t header[ATLVC_MAX_FRAME_HEADER_LEN]; // 帧头数据（自定义）
+    uint8_t trailer_len;                        // 帧尾长度（0表示无帧尾）
+    uint8_t trailer[ATLVC_MAX_FRAME_TRAILER_LEN]; // 帧尾数据（自定义）
+} atlvc_frame_boundary_t;
+
 // 前向声明：指令处理回调函数类型（解析后触发的业务逻辑）
 typedef atlvc_err_t (*atlvc_cmd_handler_t)(const atlvc_frame_t* frame, void* user_data);
 
@@ -65,14 +77,16 @@ ALIGN_4 typedef struct {
 
 // 上下文
 ALIGN_4 typedef struct {
-    const atlvc_cmd_rule_t* rule_table;  // 指令规则表
-    uint16_t rule_table_size;            // 规则表长度
+    const atlvc_cmd_rule_t* rule_table;       // 指令规则表
+    uint16_t rule_table_size;                 // 规则表长度
+    const atlvc_frame_boundary_t* boundary;   // 帧头帧尾配置（可选，NULL表示无）
 } atlvc_context_t;
 
 // 函数声明
 atlvc_err_t atlvc_init(atlvc_context_t *ctx, const atlvc_cmd_rule_t* rule_table, uint16_t length);
+atlvc_err_t atlvc_init_with_boundary(atlvc_context_t *ctx, const atlvc_cmd_rule_t* rule_table, uint16_t length, const atlvc_frame_boundary_t* boundary);
 atlvc_err_t atlvc_deinit(atlvc_context_t *ctx);
 atlvc_err_t atlvc_process(atlvc_context_t *ctx, uint8_t *p, uint16_t len);
-atlvc_err_t atlvc_pack(atlvc_frame_t *frame, atlvc_checksum_type_t check_type, uint8_t *buff, uint16_t buff_len, uint16_t *frame_len);
+atlvc_err_t atlvc_pack(atlvc_context_t *ctx, atlvc_frame_t *frame, atlvc_checksum_type_t check_type, uint8_t *buff, uint16_t buff_len, uint16_t *frame_len);
 
 #endif //ATLVC_ATLVC_H
