@@ -8,7 +8,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 if(MSVC)
     # 禁用编码警告（如果已设置 UTF-8 BOM，可禁用）
     add_compile_options(/wd4819)
-    # 禁用“未使用参数”警告
+    # 禁用"未使用参数"警告
     add_compile_options(/wd4100)
     # 启用 UTF-8 编码（MSVC 2019+ 支持）
     add_compile_options(/utf-8)
@@ -16,9 +16,37 @@ endif()
 
 add_subdirectory(libatlvc)
 
+# 主程序
 add_executable(${PROJECT_NAME} main.c)
-
 target_link_libraries(${PROJECT_NAME} PRIVATE libatlvc)
+
+# 测试程序
+enable_testing()
+
+# 测试1: 基本功能测试
+add_executable(test_basic test/test_basic.c)
+target_link_libraries(test_basic PRIVATE libatlvc)
+add_test(NAME test_basic COMMAND test_basic)
+
+# 测试2: 帧头帧尾功能测试
+add_executable(test_boundary test/test_boundary.c)
+target_link_libraries(test_boundary PRIVATE libatlvc)
+add_test(NAME test_boundary COMMAND test_boundary)
+
+# 测试3: 地址匹配功能测试
+add_executable(test_addr_match test/test_addr_match.c)
+target_link_libraries(test_addr_match PRIVATE libatlvc)
+add_test(NAME test_addr_match COMMAND test_addr_match)
+
+# 测试4: 校验功能测试
+add_executable(test_checksum test/test_checksum.c)
+target_link_libraries(test_checksum PRIVATE libatlvc)
+add_test(NAME test_checksum COMMAND test_checksum)
+
+# 测试5: 打包功能测试
+add_executable(test_pack test/test_pack.c)
+target_link_libraries(test_pack PRIVATE libatlvc)
+add_test(NAME test_pack COMMAND test_pack)
 
 if(MSVC)
     if (CMAKE_BUILD_TYPE STREQUAL "Release")
