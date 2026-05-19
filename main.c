@@ -128,9 +128,11 @@ static bool g_turn_on_user_data = true;
 
 // 定义指令表
 static const atlvc_cmd_rule_t g_user_cmd_table[] = {
-    // 地址0x01，指令0x00：心跳包（固定长度1字节，XOR校验）
+    // 地址0x10-0x1F范围，指令0x00：心跳包（支持多地址设备，固定长度1字节，XOR校验）
     {
-        .address = 0x01,
+        .addr_match_type = ATLVC_ADDR_RANGE,
+        .addr_pattern = 0x10,
+        .addr_end = 0x1F,
         .cmd = 0x00,
         .min_len = 1,
         .max_len = 1,
@@ -141,7 +143,9 @@ static const atlvc_cmd_rule_t g_user_cmd_table[] = {
     },
     // 地址0x01，指令0x01：版本查询（可变长度2-8字节，CRC8校验）
     {
-        .address = 0x01,
+        .addr_match_type = ATLVC_ADDR_SINGLE,
+        .addr_pattern = 0x01,
+        .addr_end = 0,
         .cmd = 0x01,
         .min_len = 2,
         .max_len = 8,
@@ -150,8 +154,11 @@ static const atlvc_cmd_rule_t g_user_cmd_table[] = {
         .desc = "Get Version",
         .user_data = &g_version_user_data
     },
+    // 地址掩码0xF0（匹配0xF0-0xFF），指令0x02：开关控制（支持多地址设备，可变长度1-4字节，SUM校验）
     {
-        .address = 0x01,
+        .addr_match_type = ATLVC_ADDR_MASK,
+        .addr_pattern = 0xF0,
+        .addr_end = 0xF0,
         .cmd = 0x02,
         .min_len = 1,
         .max_len = 4,
@@ -177,17 +184,30 @@ int main(void) {
     }
     printf("atlvc_init() success\n");
 
-    // 测试1：心跳包（地址0x01+指令0x00+数据长度1+数据0xAA+XOR校验位）
-    // XOR校验计算：0x01 ^ 0x00 ^ 0x01 ^ 0xAA = 0xAA
-    uint8_t heart_data[] = {0x01, 0x00, 0x01, 0xAA, 0xAA};
-    err = atlvc_process(&g_atlvc_context, heart_data, sizeof(heart_data));
+    // 测试1：心跳包（地址0x10，指令0x00，数据长度1，数据0xAA，XOR校验位）
+    // XOR校验计算：0x10 ^ 0x00 ^ 0x01 ^ 0xAA = 0xBB
+    printf("\n=== Test 1: 心跳包 (地址范围匹配 0x10) ===\n");
+    uint8_t heart_data1[] = {0x10, 0x00, 0x01, 0xAA, 0xBB};
+    err = atlvc_process(&g_atlvc_context, heart_data1, sizeof(heart_data1));
     if (err != ATLVC_ERR_SUCCESS) {
-        printf("heart_process failed: %d\n", err);
+        printf("heart_process (0x10) failed: %d\n", err);
     } else {
-        printf("heart_process success\n");
+        printf("heart_process (0x10) success\n");
     }
 
-    // 测试2：版本查询（地址0x01+指令0x01+数据长度3+数据0x01,0x02,0x03+CRC8校验位）
+    // 测试2：心跳包（地址0x1F，指令0x00，数据长度1，数据0xAA，XOR校验位）
+    // XOR校验计算：0x1F ^ 0x00 ^ 0x01 ^ 0xAA = 0xB4
+    printf("\n=== Test 2: 心跳包 (地址范围匹配 0x1F) ===\n");
+    uint8_t heart_data2[] = {0x1F, 0x00, 0x01, 0xAA, 0xB4};
+    err = atlvc_process(&g_atlvc_context, heart_data2, sizeof(heart_data2));
+    if (err != ATLVC_ERR_SUCCESS) {
+        printf("heart_process (0x1F) failed: %d\n", err);
+    } else {
+        printf("heart_process (0x1F) success\n");
+    }
+
+    // 测试3：版本查询（地址0x01，指令0x01，数据长度3，数据0x01,0x02,0x03，CRC8校验位）
+    printf("\n=== Test 3: 版本查询 (单一地址 0x01) ===\n");
     uint8_t version_data[] = {0x01, 0x01, 0x03, 0x01, 0x02, 0x03, 0x39};
     err = atlvc_process(&g_atlvc_context, version_data, sizeof(version_data));
     if (err != ATLVC_ERR_SUCCESS) {
@@ -196,13 +216,36 @@ int main(void) {
         printf("version_process success\n");
     }
 
-    // 测试3：开关控制（地址0x01+指令0x02+数据长度1+数据0x01+SUM校验位）
-    uint8_t turn_on_data[] = {0x01, 0x02, 0x01, 0x01, 0x05};
-    err = atlvc_process(&g_atlvc_context, turn_on_data, sizeof(turn_on_data));
+    // 测试4：开关控制（地址0xF2，指令0x02，数据长度1，数据0x01，SUM校验位）
+    // SUM校验计算：(0xF2 + 0x02 + 0x01 + 0x01) & 0xFF = 0xF6
+    printf("\n=== Test 4: 开关控制 (地址掩码匹配 0xF2) ===\n");
+    uint8_t turn_on_data1[] = {0xF2, 0x02, 0x01, 0x01, 0xF6};
+    err = atlvc_process(&g_atlvc_context, turn_on_data1, sizeof(turn_on_data1));
     if (err != ATLVC_ERR_SUCCESS) {
-        printf("turn_on_process failed: %d\n", err);
+        printf("turn_on_process (0xF2) failed: %d\n", err);
     } else {
-        printf("turn_on_process success\n");
+        printf("turn_on_process (0xF2) success\n");
+    }
+
+    // 测试5：开关控制（地址0xF7，指令0x02，数据长度1，数据0x01，SUM校验位）
+    // SUM校验计算：(0xF7 + 0x02 + 0x01 + 0x01) & 0xFF = 0xFB
+    printf("\n=== Test 5: 开关控制 (地址掩码匹配 0xF7) ===\n");
+    uint8_t turn_on_data2[] = {0xF7, 0x02, 0x01, 0x01, 0xFB};
+    err = atlvc_process(&g_atlvc_context, turn_on_data2, sizeof(turn_on_data2));
+    if (err != ATLVC_ERR_SUCCESS) {
+        printf("turn_on_process (0xF7) failed: %d\n", err);
+    } else {
+        printf("turn_on_process (0xF7) success\n");
+    }
+
+    // 测试6：开关控制（地址0x02，指令0x02）- 应该匹配失败，因为0x02 & 0xF0 = 0x00 != 0xF0
+    printf("\n=== Test 6: 开关控制 (地址掩码不匹配 0x02) ===\n");
+    uint8_t turn_on_data3[] = {0x02, 0x02, 0x01, 0x01, 0x05};
+    err = atlvc_process(&g_atlvc_context, turn_on_data3, sizeof(turn_on_data3));
+    if (err != ATLVC_ERR_SUCCESS) {
+        printf("turn_on_process (0x02) failed (expected): %d\n", err);
+    } else {
+        printf("turn_on_process (0x02) success (unexpected!)\n");
     }
 
     // 反初始化

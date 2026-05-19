@@ -6,6 +6,22 @@
 #include "atlvc_check.h"
 // #include <stdio.h>
 
+// 地址匹配函数（支持多地址设备）
+static int atlvc_addr_match(const atlvc_cmd_rule_t* rule, uint8_t address) {
+    switch (rule->addr_match_type) {
+        case ATLVC_ADDR_SINGLE:
+            return (rule->addr_pattern == address);
+        case ATLVC_ADDR_RANGE:
+            return (address >= rule->addr_pattern && address <= rule->addr_end);
+        case ATLVC_ADDR_MASK:
+            return ((address & rule->addr_end) == (rule->addr_pattern & rule->addr_end));
+        case ATLVC_ADDR_WILDCARD:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
 // 统一校验入口函数
 atlvc_err_t atlvc_check_sum(uint8_t *p, size_t data_len, atlvc_checksum_type_t cs_type, uint8_t checksum) {
     if (p == NULL || data_len == 0) {
@@ -72,10 +88,10 @@ atlvc_err_t atlvc_process(atlvc_context_t *ctx, uint8_t *p, uint16_t len) {
     uint8_t cmd = p[1];
     uint8_t data_len = p[2];
 
-    // 3. 查找匹配的指令规则（地址+指令匹配）
+    // 3. 查找匹配的指令规则（地址+指令匹配，支持多地址设备）
     const atlvc_cmd_rule_t* matched_rule = NULL;
     for (uint16_t i = 0; i < ctx->rule_table_size; i++) {
-        if (ctx->rule_table[i].address == address && ctx->rule_table[i].cmd == cmd) {
+        if (ctx->rule_table[i].cmd == cmd && atlvc_addr_match(&ctx->rule_table[i], address)) {
             matched_rule = &ctx->rule_table[i];
             break;
         }
@@ -139,6 +155,10 @@ atlvc_err_t atlvc_process(atlvc_context_t *ctx, uint8_t *p, uint16_t len) {
 
 atlvc_err_t atlvc_pack(atlvc_frame_t *frame, atlvc_checksum_type_t check_type, uint8_t *buff, uint16_t buff_len, uint16_t *frame_len) {
     if (frame == NULL || buff == NULL || buff_len == 0 || frame_len == NULL) {
+        return ATLVC_ERR_INPUT_NULL;
+    }
+
+    if (frame->length > 0 && frame->data == NULL) {
         return ATLVC_ERR_INPUT_NULL;
     }
 

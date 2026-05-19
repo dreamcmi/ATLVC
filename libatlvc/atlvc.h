@@ -38,19 +38,29 @@ typedef enum {
     ATLVC_CHECKSUM_SUM,         // SUM校验（累加和校验）
 } atlvc_checksum_type_t;
 
+// 地址匹配方式（支持多地址设备）
+typedef enum {
+    ATLVC_ADDR_SINGLE = 0,         // 单一地址（默认）
+    ATLVC_ADDR_RANGE,              // 地址范围（addr_start <= address <= addr_end）
+    ATLVC_ADDR_MASK,               // 地址掩码（(address & addr_end) == (addr_pattern & addr_end)）
+    ATLVC_ADDR_WILDCARD = 0xFF,    // 地址通配符（匹配任意地址）
+} atlvc_addr_match_type_t;
+
 // 前向声明：指令处理回调函数类型（解析后触发的业务逻辑）
 typedef atlvc_err_t (*atlvc_cmd_handler_t)(const atlvc_frame_t* frame, void* user_data);
 
 // ATLVC预定义指令表项（存储指令的协议规则）
 ALIGN_4 typedef struct {
-    uint8_t address;                // 指令对应的地址（支持多地址设备）
-    uint8_t cmd;                    // 指令码（唯一标识）
-    uint8_t min_len;                // 最小数据长度（N的最小值）
-    uint8_t max_len;                // 最大数据长度（N的最大值，固定长度时min=max）
-    atlvc_checksum_type_t cs_type;  // 校验方式
-    atlvc_cmd_handler_t handler;    // 指令处理回调（解析成功后执行）
-    const char* desc;               // 指令描述（调试用）
-    void* user_data;                // 回调函数的用户数据（可选）
+    atlvc_addr_match_type_t addr_match_type;  // 地址匹配类型（支持多地址设备）
+    uint8_t addr_pattern;                     // 地址参数（单一地址、通配符为0xFF、范围起始、掩码基准）
+    uint8_t addr_end;                         // 地址范围结束或掩码值（仅 ATLVC_ADDR_RANGE/MASK 时使用）
+    uint8_t cmd;                             // 指令码（唯一标识）
+    uint8_t min_len;                         // 最小数据长度（N的最小值）
+    uint8_t max_len;                         // 最大数据长度（N的最大值，固定长度时min=max）
+    atlvc_checksum_type_t cs_type;           // 校验方式
+    atlvc_cmd_handler_t handler;             // 指令处理回调（解析成功后执行）
+    const char* desc;                        // 指令描述（调试用）
+    void* user_data;                        // 回调函数的用户数据（可选）
 } atlvc_cmd_rule_t;
 
 // 上下文
