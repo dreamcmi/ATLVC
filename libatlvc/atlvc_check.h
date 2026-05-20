@@ -6,6 +6,7 @@
 #define ATLVC_ATLVC_CHECK_H
 
 #include "stdint.h"
+#include "stddef.h"
 
 // 逐位计算CRC8（多项式0x07，初始值0x00，异或输出0x00，无数据反转）
 uint8_t atlvc_crc8_checksum(const uint8_t* data, size_t len);
